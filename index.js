@@ -9,10 +9,10 @@ app.use(bodyParser.urlencoded({ extended: false }));
 
 // Database connection details
 const dbConfig = {
-    host: 'bk6cpgurnp6xrzzcae7u-mysql.services.clever-cloud.com',
-    user: 'u9tq20lqv3ji5uzl',
-    password: 'lPYTjwQrvyZP72FlKehK', // Replace with your MySQL password
-    database: 'bk6cpgurnp6xrzzcae7u'
+    host: 'baoivsz1j04goy1gqffg-mysql.services.clever-cloud.com',
+    user: 'uym9wiakrb7quu3n',
+    password: 'KuOtcpkcHdHWtIkIDJzX',
+    database: 'baoivsz1j04goy1gqffg'
 };
 
 let db;
@@ -43,19 +43,23 @@ function handleDisconnect() {
 // Initial connection
 handleDisconnect();
 
-// In-memory storage for votes (for simplicity)
-let votes = {
-    "NYIREAMBONIGABA. ": 0,
-    "CHARTINE. ": 0,
-    "EPIPHANIE. ": 0,
-    "ISLA. ": 0,
-    "SAM. ": 0
-};
-
 // In-memory storage for user data (for simplicity)
 let userNames = {};
 let voters = new Set(); // Set to track phone numbers that have already voted
 let userLanguages = {}; // Object to store the language preference of each user
+
+// Function to get vote counts from the database
+function getVoteCounts(callback) {
+    const query = 'SELECT voted_candidate, COUNT(*) as vote_count FROM votes GROUP BY voted_candidate';
+    db.query(query, (err, results) => {
+        if (err) {
+            console.error('Error fetching data from database:', err.stack);
+            callback(err, null);
+        } else {
+            callback(null, results);
+        }
+    });
+}
 
 app.post('/ussd', (req, res) => {
     let response = '';
@@ -69,7 +73,7 @@ app.post('/ussd', (req, res) => {
     // Determine next action based on user input
     if (userInput.length === 1 && userInput[0] === '') {
         // First level menu: Language selection
-        response = `CON Welcome to Epiphanie voting booth\n`;
+        response = `CON Welcome to Mayor voting booth\n`;
         response += `1. English\n`;
         response += `2. Kinyarwanda`;
     } else if (userInput.length === 1 && userInput[0] !== '') {
@@ -96,24 +100,31 @@ app.post('/ussd', (req, res) => {
             } else {
                 // Voting option selected
                 response = userLanguages[phoneNumber] === 'en' ? 
-                    `CON Select a candidate:\n1. nyirambonigaba epiphanie\n2. chartine kayitesi\n3. epiphanie nyira\n4. isla tuyambaze\n5. uwase sam` : 
-                    `CON Hitamo umukandida:\n1. nyirambonigaba epiphanie\n2. chartine kayitesi\n3. epiphanie nyira\n4. isla tuyambaze\n5. uwase sam`;
+                    `CON Select a candidate:\n1. KAYITESI.\n2. CHARTINE.\n3. EPIPHANIE.\n4. HENRIETTE.\n5. DAMARS.` : 
+                    `CON Hitamo umukandida:\n1. KAYITESI.\n2. CHARTINE.\n3. EPIPHANIE.\n4. HENRIETTE.\n5. DAMARS.`;
             }
         } else if (userInput[2] === '2') {
             // View votes option selected
-            response = userLanguages[phoneNumber] === 'en' ? 
-                `END Votes:\n` : 
-                `END Amajwi:\n`;
-            for (let candidate in votes) {
-                response += `${candidate}: ${votes[candidate]} votes\n`;
-            }
+            getVoteCounts((err, results) => {
+                if (err) {
+                    response = userLanguages[phoneNumber] === 'en' ? 
+                        `END Error fetching vote data. Please try again later.` : 
+                        `END Ikosa mugihe cyo kubona amakuru y'amajwi. Ongera mugerageze nyuma.`;
+                } else {
+                    response = userLanguages[phoneNumber] === 'en' ? `END Votes:\n` : `END Amajwi:\n`;
+                    results.forEach(row => {
+                        response += `${row.voted_candidate}: ${row.vote_count} votes\n`;
+                    });
+                }
+                res.send(response);
+            });
+            return;
         }
     } else if (userInput.length === 4) {
         // Fourth level menu: Voting confirmation
         let candidateIndex = parseInt(userInput[3]) - 1;
-        let candidateNames = Object.keys(votes);
+        let candidateNames = ["KAYITESI.", "CHARTINE.", "EPIPHANIE.", "HENRIETTE.", "DAMARS."];
         if (candidateIndex >= 0 && candidateIndex < candidateNames.length) {
-            votes[candidateNames[candidateIndex]] += 1;
             voters.add(phoneNumber); // Mark this phone number as having voted
             response = userLanguages[phoneNumber] === 'en' ? 
                 `END Thank you for voting for ${candidateNames[candidateIndex]}!` : 
